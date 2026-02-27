@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>占位图片生成器 - 独立版</title>
+    <!-- 引入LayUI CSS -->
+    <link rel="stylesheet" href="__CDN__/assets/addons/placeholder/libs/layui/css/layui.css">
+    <!-- 自定义样式 -->
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f6f6f6;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 32px;
+            font-weight: 300;
+        }
+        .header p {
+            color: #666;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        .main-content {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,.1);
+            padding: 30px;
+        }
+        .layui-card {
+            margin-bottom: 20px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .layui-card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            background-color: #fafafa;
+            color: #333;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .layui-card-body {
+            padding: 20px;
+        }
+        .preview-container {
+            min-height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            padding: 20px;
+        }
+        .preview-container img {
+            max-width: 100%;
+            max-height: 400px;
+            border: 1px solid #eee;
+        }
+        .image-url {
+            margin-top: 15px;
+        }
+        .history-item {
+            margin-bottom: 15px;
+        }
+        .history-item img {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .history-item img:hover {
+            transform: scale(1.05);
+        }
+        .layui-input-group {
+            width: 100%;
+        }
+        .layui-input-group-button {
+            width: auto;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .batch-template, .batch-result-template {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>占位图片生成器</h1>
+            <p>快速生成自定义的占位图片，支持多种尺寸、颜色和格式</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="layui-row layui-col-space15">
+                <!-- 左侧配置区 -->
+                <div class="layui-col-md6">
+                    <form class="layui-form" lay-filter="placeholder-form">
+                        <!-- 尺寸设置 -->
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">尺寸</label>
+                            <div class="layui-input-inline">
+                                <input type="text" lay-affix="number" name="width" value="300" min="10" max="{$config.max_width}" class="layui-input" placeholder="宽度">
+                            </div>
+                            <div class="layui-form-mid">x</div>
+                            <div class="layui-input-inline">
+                                <input type="text" lay-affix="number" name="height" value="200" min="10" max="{$config.max_height}" class="layui-input" placeholder="高度">
+                            </div>
+                        </div>
+                        
+                        <!-- 颜色设置 -->
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">颜色</label>
+                            <div class="layui-input-inline layui-input-group">
+                                <input type="text" name="bgcolor" value="{$config.default_bgcolor}" class="layui-input" placeholder="背景色">
+                                <div class="colorpicker" id="bgcolor"></div>
+                            </div>
+                            <div class="layui-form-mid">-</div>
+                            <div class="layui-input-inline layui-input-group">
+                                <input type="text" name="textcolor" value="{$config.default_textcolor}" class="layui-input" placeholder="文字色">
+                                <div class="colorpicker" id="textcolor"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 文字设置 -->
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">文字</label>
+                            <div class="layui-input-block">
+                                <input type="text" name="text" value="" class="layui-input" placeholder="留空显示尺寸">
+                            </div>
+                        </div>
+                        
+                        <!-- 格式设置 -->
+                        <div class="layui-form-item">
+                            <label class="layui-form-label">格式</label>
+                            <div class="layui-input-block">
+                                <select name="format" lay-verify="required">
+                                    {volist name=":explode(',', $config.allow_formats)" id="vo"}
+                                    <option value="{$vo}" {if condition="$vo eq $config.default_format"}selected{/if}>{$vo|strtoupper}</option>
+                                    {/volist}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 特效设置 -->
+                        <div class="layui-form-text" style="margin-bottom: 20px;">
+                            <label class="layui-form-label">特效</label>
+                            <div class="layui-input-block">
+                                <div class="layui-input-inline">
+                                    <input type="checkbox" name="grayscale" value="1" lay-skin="tag" title="灰度" >
+                                </div>
+                                <div class="layui-input-inline">
+                                    <label class="layui-form-label" style="width: auto;">模糊</label>
+                                </div>
+                                <div class="layui-input-inline" style="width: 260px;">
+                                    <input type="hidden" name="blur" id="blur" value="0" >
+                                    <div class="slider" lay-options="{value: 0, max: {$config.max_blur}, input: true}"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="layui-form-item">
+                            <div class="layui-input-block">
+                                <button class="layui-btn" lay-submit lay-filter="generate">生成图片</button>
+                                <button type="button" class="layui-btn layui-btn-normal" id="batch-generate">批量生成</button>
+                                <button type="button" class="layui-btn layui-btn-warm" id="clear-history">清空历史</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- 右侧预览区 -->
+                <div class="layui-col-md6">
+                    <div class="preview-container">
+                        <img id="placeholder-preview" src="" alt="预览图">
+                    </div>
+                    
+                    <!-- 图片URL -->
+                    <div class="image-url">
+                        <div class="layui-input-group">
+                            <input type="text" id="image-url" class="layui-input" readonly>
+                            <div class="layui-input-group-button" style="width: 66px;">
+                                <button class="layui-btn" id="copy-url">复制</button>
+                            </div>
+                        </div>
+                        <div class="layui-form-item" style="margin-top: 10px;">
+                            <div class="layui-input-block">
+                                <button class="layui-btn layui-btn-sm layui-btn-primary" id="copy-markdown">Markdown</button>
+                                <button class="layui-btn layui-btn-sm layui-btn-primary" id="copy-html">HTML</button>
+                                <button class="layui-btn layui-btn-sm layui-btn-primary" id="copy-bbcode">BBCode</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {if $config.history_enable}
+            <!-- 历史记录 -->
+            <div class="layui-row" style="margin-top: 20px;">
+                <div class="layui-col-md12">
+                    <div class="layui-card">
+                        <div class="layui-card-header" style="display: flex;align-items: center;">
+                            <h3>历史记录</h3>
+                            <span class="layui-badge" id="history-count" title="历史记录" style="margin-left: 10px;">0</span>
+                        </div>
+                        <div class="layui-card-body">
+                            <div id="history-list" class="layui-row layui-col-space10"></div>
+                            <div id="history-empty" class="text-center" style="padding: 20px; color: #999;">
+                                暂无历史记录
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/if}
+        </div>
+    </div>
+
+    <!-- 批量生成模板 -->
+    <div class="batch-template">
+        <div class="layui-form" style="padding:20px 40px 0 0;">
+            <div class="layui-form-item">
+                <label class="layui-form-label">尺寸列表</label>
+                <div class="layui-input-block">
+                    <textarea name="sizes" class="layui-textarea" placeholder="每行一个尺寸，格式：宽x高" style="min-height: 150px;">300x200
+600x400
+800x600</textarea>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">颜色</label>
+                <div class="layui-input-inline layui-input-group">
+                    <input type="text" name="bgcolor" value="{$config.default_bgcolor}" class="layui-input" placeholder="背景色">
+                    <div class="colorpicker" id="batch-bgcolor"></div>
+                </div>
+                <div class="layui-form-mid">-</div>
+                <div class="layui-input-inline layui-input-group">
+                    <input type="text" name="textcolor" value="{$config.default_textcolor}" class="layui-input" placeholder="文字色">
+                    <div class="colorpicker" id="batch-textcolor"></div>
+                </div>
+            </div>
+            
+            <div class="layui-form-item">
+                <label class="layui-form-label">文字内容</label>
+                <div class="layui-input-block">
+                    <input type="text" name="text" value="" class="layui-input" placeholder="留空显示尺寸">
+                </div>
+            </div>
+            
+            <!-- 格式设置 -->
+            <div class="layui-form-item">
+                <label class="layui-form-label">格式</label>
+                <div class="layui-input-block">
+                    <select name="format" lay-verify="required">
+                        {volist name=":explode(',', $config.allow_formats)" id="vo"}
+                        <option value="{$vo}" {if condition="$vo eq $config.default_format"}selected{/if}>{$vo|strtoupper}</option>
+                        {/volist}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 特效设置 -->
+            <div class="layui-form-text" style="margin-bottom: 20px;">
+                <label class="layui-form-label">特效</label>
+                <div class="layui-input-block">
+                    <div class="layui-input-inline">
+                        <input type="checkbox" name="grayscale" value="1" lay-skin="tag" title="灰度" >
+                    </div>
+                    <div class="layui-input-inline">
+                        <label class="layui-form-label" style="width: auto;">模糊</label>
+                    </div>
+                    <div class="layui-input-inline" style="width: 260px;">
+                        <input type="hidden" name="blur" id="blur" value="0" >
+                        <div class="slider" lay-options="{value: 0, max: {$config.max_blur}, input: true}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量生成结果模板 -->
+    <div class="batch-result-template">
+        <div class="layui-card">
+            <div class="layui-card-body">
+                <div id="batch-result-list" class="layui-row layui-col-space10"></div>
+                <div class="layui-form-item" style="margin-top: 15px; text-align: center;">
+                    <button class="layui-btn" id="copy-all-urls">复制所有链接</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入jQuery和LayUI -->
+    <script src="__CDN__/assets/libs/jquery/dist/jquery.min.js"></script>
+    <script src="__CDN__/assets/addons/placeholder/libs/layui/layui.js"></script>
+    
+    <script>
+        // 初始化LayUI
+        layui.use(['form', 'layer', 'colorpicker', 'slider'], function(){
+            var form = layui.form;
+            var layer = layui.layer;
+            var colorpicker = layui.colorpicker;
+            var slider = layui.slider;
+            
+            // 本地存储键名
+            var STORAGE_KEY = 'placeholder_history';
+            
+            // 获取当前页面URL
+            var currentUrl = window.location.href;
+            //var baseUrl = '{:addon_url('placeholder/index/image','',false,true)}'; // addon_url无法移除可选参数，改为在控制器中直接传递基础URL
+            var baseUrl = '{$baseUrl}';
+            
+            colorpicker.render({
+                elem: '#bgcolor',
+                color: '{$config.default_bgcolor}',
+                done: function(color){
+                    this.elem.prev().val(color);
+                }
+            });
+            colorpicker.render({
+                elem: '#textcolor',
+                color: '{$config.default_textcolor}',
+                done: function(color){
+                    this.elem.prev().val(color);
+                }
+            });
+            var form_slider = slider.render({
+                elem: '.slider',
+                done: function(value){
+                    $("#blur").val(value);
+                }
+            });
+
+            // 构建URL
+            function generateUrl(formData) {
+                let size = formData.width + 'x' + formData.height + '.' + (formData.format || 'png');
+                let url = baseUrl + '/' + size;
+                // 创建查询参数对象（排除尺寸和格式参数）
+                let params = {};
+                for (let key in formData) {
+                    if (key !== 'width' && key !== 'height' && key !== 'format' && formData[key]) {
+                        if (key == 'bgcolor' || key == 'textcolor' || key == 'fcolor') {
+                            params[key] = formData[key].replace('#', ''); // 移除颜色值中的#号（可选）
+                        }else{
+                            params[key] = formData[key];
+                        }
+                    }
+                }
+                // 添加查询参数
+                if (Object.keys(params).length > 0) {
+                    url += '?' + $.param(params);
+                }
+                return url;
+            }
+            
+            // 生成图片
+            function generateImage() {
+                let formData = form.val('placeholder-form');
+                // 构建直接URL格式
+                let url = generateUrl(formData);
+                
+                // 更新预览图
+                $('#placeholder-preview').attr('src', url + '&_t=' + new Date().getTime());
+                
+                // 更新URL输入框
+                $('#image-url').val(url);
+                
+                {if $config.history_enable}
+                // 保存到历史记录
+                saveHistory(formData);
+                {/if}
+            }
+            
+            // 保存历史记录
+            function saveHistory(config) {
+                try {
+                    // 从localStorage获取历史记录
+                    let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    
+                    // 检查是否已存在相同配置
+                    let exists = false;
+                    for (let i = 0; i < history.length; i++) {
+                        if (compareConfig(history[i], config)) {
+                            // 如果已存在，移到最前面
+                            let item = history[i];
+                            history.splice(i, 1);
+                            history.unshift(item);
+                            exists = true;
+                            break;
+                        }
+                    }
+                    
+                    // 如果不存在，添加到最前面
+                    if (!exists) {
+                        history.unshift(config);
+                    }
+                    
+                    // 限制历史记录数量
+                    history = history.slice(0, {$config.history_limit});
+                    
+                    // 保存到localStorage
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+                    
+                    // 重新加载历史记录
+                    loadHistory();
+                } catch (e) {
+                    console.error('保存历史记录失败:', e);
+                }
+            }
+            
+            // 加载历史记录
+            function loadHistory() {
+                try {
+                    // 从localStorage获取历史记录
+                    let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    let html = '';
+                    let count = history.length;
+                    
+                    // 更新历史记录数量
+                    $('#history-count').text(count);
+                    
+                    // 显示或隐藏空状态
+                    if (count > 0) {
+                        $('#history-empty').hide();
+                    } else {
+                        $('#history-empty').show();
+                    }
+                    
+                    // 生成历史记录列表
+                    $.each(history, function(index, item){
+                        let url = generateUrl(item);
+                        let size = item.width + 'x' + item.height + '.' + (item.format || 'png');
+                        
+                        html += '<div class="layui-col-md2 layui-col-sm3 layui-col-xs4 history-item">';
+                        html += '<div class="layui-card">';
+                        html += '<div class="layui-card-body" style="padding: 5px; text-align: center;">';
+                        html += '<img src="' + url + '" alt="' + size + '" style="max-width: 100%; max-height: 100px; margin-bottom: 5px;">';
+                        html += '<div class="text-center" style="font-size: 12px; color: #666;">' + size + '</div>';
+                        html += '</div>';
+                        html += '<div class="layui-card-footer" style="padding: 5px;text-align: center;">';
+                        html += '<button class="layui-btn layui-btn-xs layui-btn-primary use-history" data-config=\'' + JSON.stringify(item) + '\'>使用</button>';
+                        html += '<button class="layui-btn layui-btn-xs layui-btn-danger copy-history" data-url="' + url + '">复制</button>';
+                        html += '</div>';
+                        html += '</div>';
+                        html += '</div>';
+                    });
+                    
+                    $('#history-list').html(html);
+                } catch (e) {
+                    console.error('加载历史记录失败:', e);
+                }
+            }
+            
+            // 比较两个配置是否相同
+            function compareConfig(config1, config2) {
+                let keys = ['width', 'height', 'bgcolor', 'textcolor', 'text', 'format', 'grayscale', 'blur'];
+                for (let i = 0; i < keys.length; i++) {
+                    let key = keys[i];
+                    if (config1[key] != config2[key]) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            // 复制文本到剪贴板
+            function copyToClipboard(text, message) {
+                if (navigator.clipboard) {
+                    // 使用现代API
+                    navigator.clipboard.writeText(text).then(function() {
+                        layer.msg(message || '已复制到剪贴板');
+                    }).catch(function() {
+                        fallbackCopyTextToClipboard(text, message);
+                    });
+                } else {
+                    // 回退方法
+                    fallbackCopyTextToClipboard(text, message);
+                }
+            }
+            
+            // 回退复制方法
+            function fallbackCopyTextToClipboard(text, message) {
+                let textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-999999px';
+                textarea.style.top = '-999999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                try {
+                    let successful = document.execCommand('copy');
+                    if (successful) {
+                        layer.msg(message || '已复制到剪贴板');
+                    } else {
+                        layer.msg('复制失败，请手动复制');
+                    }
+                } catch (err) {
+                    layer.msg('复制失败，请手动复制');
+                }
+                
+                document.body.removeChild(textarea);
+            }
+            
+            // 表单提交
+            form.on('submit(generate)', function(data){
+                generateImage();
+                return false;
+            });
+            
+            // 复制链接
+            $('#copy-url').on('click', function(){ copyToClipboard($('#image-url').val(), '链接已复制到剪贴板') });
+            
+            // 复制Markdown格式
+            $('#copy-markdown').on('click', function(){ copyToClipboard('![](' + $('#image-url').val() + ')', 'Markdown格式已复制') });
+            
+            // 复制HTML格式
+            $('#copy-html').on('click', function(){ copyToClipboard('<img src="' + $('#image-url').val() + '" alt="占位图">', 'HTML格式已复制') });
+            
+            // 复制BBCode格式
+            $('#copy-bbcode').on('click', function(){ copyToClipboard('[img]' + $('#image-url').val() + '[/img]', 'BBCode格式已复制') });
+            
+            // 使用历史记录
+            $(document).on('click', '.use-history', function(){
+                let config = $(this).data('config');
+                form.val('placeholder-form', config);
+                $('input[name="grayscale"]').prop('checked', config.grayscale==1);
+                colorpicker.render({ elem: '#bgcolor', color: config.bgcolor || '{$config.default_bgcolor}' });
+                colorpicker.render({ elem: '#textcolor', color: config.textcolor || '{$config.default_textcolor}' });
+                form_slider.setValue(config.blur || 0);
+                generateImage();
+            });
+            
+            // 复制历史记录链接
+            $(document).on('click', '.copy-history', function(){ copyToClipboard($(this).data('url'), '链接已复制到剪贴板') });
+            
+            // 清空历史记录
+            $('#clear-history').on('click', function(){
+                layer.confirm('确定要清空所有历史记录吗？', function(index){
+                    try {
+                        localStorage.removeItem(STORAGE_KEY);
+                        loadHistory();
+                        layer.msg('历史记录已清空');
+                    } catch (e) {
+                        layer.msg('清空失败');
+                    }
+                    layer.close(index);
+                });
+            });
+            
+            // 批量生成
+            $('#batch-generate').on('click', function(){
+                layer.open({
+                    type: 1,
+                    title: '批量生成',
+                    content: $('.batch-template').html(),
+                    area: ['600px', '520px'],
+                    success: function(layero, index){
+                        colorpicker.render({
+                            elem: '.layui-layer #batch-bgcolor',
+                            color: '{$config.default_bgcolor}',
+                            done: function(color){
+                                this.elem.prev().val(color);
+                            }
+                        });
+                        colorpicker.render({
+                            elem: '.layui-layer #batch-textcolor',
+                            color: '{$config.default_textcolor}',
+                            done: function(color){
+                                this.elem.prev().val(color);
+                            }
+                        });
+                        slider.render({
+                            elem: '.layui-layer .slider',
+                            done: function(value){
+                                layero.find('input[name="blur"]').val(value);
+                            }
+                        });
+                        form.render();
+                    },
+                    btn: ['生成', '取消'],
+                    yes: function(index, layero){
+                        let sizes = layero.find('textarea[name="sizes"]').val();
+                        if (!sizes) {
+                            return layer.msg('请输入尺寸列表');
+                        }
+                        
+                        // 获取基础配置
+                        let baseConfig = {
+                            bgcolor: layero.find('input[name="bgcolor"]').val(),
+                            textcolor: layero.find('input[name="textcolor"]').val(),
+                            text: layero.find('input[name="text"]').val(),
+                            format: layero.find('select[name="format"]').val(),
+                            grayscale: layero.find('input[name="grayscale"]').is(':checked') ? 1 : 0,
+                            blur: layero.find('input[name="blur"]').val(),
+                        };
+                        
+                        // 解析尺寸列表
+                        let sizeList = sizes.split('\n');
+                        let imageUrls = [];
+                        
+                        $.each(sizeList, function(i, size){
+                            size = $.trim(size);
+                            if (size && /^\d+x\d+$/.test(size)) {
+                                let parts = size.split('x');
+                                let config = $.extend({}, baseConfig, { width: parts[0], height: parts[1] });
+                                imageUrls.push({ size: size, url: generateUrl(config) });
+                            }
+                        });
+                        
+                        if (imageUrls.length === 0) {
+                            return layer.msg('未找到有效的尺寸格式');
+                        }
+                        
+                        // 关闭当前弹窗
+                        layer.close(index);
+                        
+                        // 显示结果弹窗
+                        layer.open({
+                            type: 1,
+                            title: "生成结果",
+                            content: $('.batch-result-template').html(),
+                            area: ['600px', '520px'],
+                            success: function(layero2, index2){
+                                let listHtml = '';
+                                let urls = [];
+                                
+                                // 生成结果列表
+                                $.each(imageUrls, function(i, item){
+                                    urls.push(item.url);
+                                    
+                                    listHtml += '<div class="layui-col-md4 layui-col-sm6 layui-col-xs12">';
+                                    listHtml += '<div class="layui-card">';
+                                    listHtml += '<div class="layui-card-body" style="padding: 5px; text-align: center;">';
+                                    listHtml += '<img src="' + item.url + '" alt="' + item.size + '" style="max-width: 100%; max-height: 100px; margin-bottom: 5px;">';
+                                    listHtml += '<div class="text-center" style="font-size: 12px; color: #666;">' + item.size + '</div>';
+                                    listHtml += '</div>';
+                                    listHtml += '<div class="layui-card-footer" style="padding: 5px;">';
+                                    listHtml += '<div class="layui-input-group">';
+                                    listHtml += '<input type="text" value="' + item.url + '" class="layui-input layui-input-sm copy-url" readonly>';
+                                    listHtml += '</div>';
+                                    listHtml += '</div>';
+                                    listHtml += '</div>';
+                                    listHtml += '</div>';
+                                });
+                                
+                                layero2.find('#batch-result-list').html(listHtml);
+
+                                // 输入框点缀事件 - 搜索示例
+                                form.on('input-affix(search)', function(data){
+                                var elem = data.elem; // 输入框
+                                var value = elem.value; // 输入框的值
+                                if(!value){
+                                    layer.msg('请输入搜索内容');
+                                    return elem.focus()
+                                };
+                                // 模拟搜索跳转
+                                location.href = '?keywords='+ value + '&_'+ new Date().getTime() +'#affix-custom';
+                                });
+                                
+                                // 复制单个链接
+                                layero2.on('click', '.copy-url', function(){ copyToClipboard($(this).val(), '链接已复制到剪贴板') });
+                                
+                                // 复制所有链接
+                                layero2.find('#copy-all-urls').on('click', function(){ copyToClipboard(urls.join('\n'), '所有链接已复制到剪贴板') });
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // 初始加载
+            generateImage();
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
